@@ -186,45 +186,134 @@ Three tasks of increasing difficulty, all seeded deterministically:
   Task 3 (pipeline_merge)  — 80 orders + 30 products join, 30-step budget
 ```
 
-## Setup
+## Quick Start
 
-### Install
+### 1. In-Process Gymnasium Interface (no server needed)
 
 ```bash
-pip install openenv-core
 git clone https://huggingface.co/spaces/yaswanth169/data-janitor-env
 cd data-janitor-env
-pip install -e .
+pip install -e ".[gym]"
 ```
 
-### Run Locally
+```python
+from gym_env import DataJanitorGymEnv
+
+# Text mode — for LLM agents
+env = DataJanitorGymEnv(task_id="fix_basics", mode="text")
+obs, info = env.reset()
+print(f"Quality: {info['quality_score']:.2%} | Issues: {len(info['issues'])}")
+
+action = env.action_from_dict("drop_duplicates", params={"subset": ["employee_id"]})
+obs, reward, terminated, truncated, info = env.step(action)
+print(f"After drop_duplicates: {info['quality_score']:.2%}")
+```
+
+```python
+# Dict mode — for classical RL (PPO, DQN, Q-learning)
+env = DataJanitorGymEnv(task_id="fix_basics", mode="dict")
+obs, info = env.reset()     # obs.shape == (8,)
+action = env.action_space.sample()
+obs, reward, terminated, truncated, info = env.step(action)
+```
+
+### 2. Train an RL Agent
 
 ```bash
-cd data-janitor-env
-PYTHONPATH=. uvicorn server.app:app --host 0.0.0.0 --port 7860 --reload
+# No extra dependencies needed (Q-table fallback)
+python examples/train_rl_agent.py
+
+# With stable-baselines3 (PPO)
+pip install stable-baselines3
+python examples/train_rl_agent.py
 ```
 
-### Docker
+### 3. Run an LLM Agent
+
+```bash
+export MODEL_NAME="Qwen/Qwen2.5-72B-Instruct"
+export HF_TOKEN="your-hf-token"
+python examples/llm_agent.py
+```
+
+### 4. Server Mode (WebSocket API)
+
+```bash
+# Start the server
+PYTHONPATH=. uvicorn server.app:app --host 0.0.0.0 --port 7860
+
+# Run the baseline inference script
+export MODEL_NAME="your-model"
+export HF_TOKEN="your-token"
+export ENV_BASE_URL="http://localhost:7860"
+python inference.py
+```
+
+### 5. Use the Interactive Dashboard
+
+Visit the live HF Space at https://huggingface.co/spaces/yaswanth169/data-janitor-env
+
+The dashboard lets you:
+- Select a task and explore the dirty dataset
+- Issue cleaning commands via a GUI and watch quality improve in real-time
+- Run the built-in baseline agent with one click
+- See schema, sample rows, and detected issues
+
+### 6. Docker
 
 ```bash
 docker build -t data-janitor-env .
 docker run -p 7860:7860 data-janitor-env
+# Dashboard: http://localhost:7860
+# API docs:  http://localhost:7860/docs
+# WebSocket: ws://localhost:7860/ws
 ```
 
-### Run Inference
+### 7. Use with the OpenEnv Client
 
-```bash
-export API_BASE_URL="https://router.huggingface.co/v1"
-export MODEL_NAME="your-model-name"
-export HF_TOKEN="your-token"
-export ENV_BASE_URL="http://localhost:7860"
+```python
+from data_janitor_env import DataJanitorEnv, DataJanitorAction
 
-python inference.py
+with DataJanitorEnv(base_url="https://yaswanth169-data-janitor-env.hf.space").sync() as env:
+    result = env.reset(task_id="fix_basics")
+    print(f"Issues: {result.observation.issues}")
+
+    result = env.step(DataJanitorAction(
+        command="drop_duplicates",
+        params={"subset": ["employee_id"]}
+    ))
+    print(f"Quality: {result.observation.quality_score:.2%}")
+
+    result = env.step(DataJanitorAction(command="submit"))
+    print(f"Final score: {result.reward:.4f}")
 ```
 
-### Deploy to HF Spaces
+## Real-World Use Case
+
+Data scientists spend 80% of their time on data wrangling. This environment
+trains AI agents to automate that work:
+
+1. **Train** an agent on the environment's 3 tasks
+2. **Fine-tune** an LLM using the continuous reward signal
+3. **Deploy** the fine-tuned model to your ETL pipeline
+4. The model **auto-detects issues** and applies the right transformations
+5. Only edge cases escalate to human review — saving hours per dataset
+
+The same RL-trained policy generalises from the training tasks to real
+CSV exports, CRM data, and database snapshots with similar cleaning patterns.
+
+## Setup for Development
 
 ```bash
+git clone https://huggingface.co/spaces/yaswanth169/data-janitor-env
+cd data-janitor-env
+pip install -e ".[server,inference,gym,dev]"
+
+# Run tests (server must be running)
+PYTHONPATH=. uvicorn server.app:app --host 0.0.0.0 --port 7860 &
+python tests/test_suite.py
+
+# Deploy to HF Spaces
 openenv push --repo-id yaswanth169/data-janitor-env
 ```
 
@@ -232,9 +321,14 @@ openenv push --repo-id yaswanth169/data-janitor-env
 
 ```
 data-janitor-env/
+├── gym_env.py             # Gymnasium wrapper (in-process, no server needed)
 ├── models.py              # Pydantic models (Action, Observation, State)
 ├── client.py              # WebSocket client (EnvClient subclass)
 ├── inference.py           # Baseline LLM agent
+├── examples/
+│   ├── quickstart.py      # 5-minute getting started
+│   ├── train_rl_agent.py  # PPO / Q-table RL training
+│   └── llm_agent.py       # LLM agent via OpenAI-compat API
 ├── openenv.yaml           # Environment manifest
 ├── Dockerfile             # Container definition
 ├── requirements.txt       # Server dependencies
@@ -245,25 +339,6 @@ data-janitor-env/
     ├── engine.py          # Data transformation engine (16 commands)
     ├── graders.py         # Deterministic grading system
     └── task_data.py       # Seeded dataset generation
-```
-
-## Usage with OpenEnv Client
-
-```python
-from data_janitor_env import DataJanitorEnv, DataJanitorAction
-
-with DataJanitorEnv(base_url="https://yaswanth169-data-janitor-env.hf.space").sync() as env:
-    result = env.reset(task_id="fix_basics")
-    print(result.observation.issues)
-
-    result = env.step(DataJanitorAction(
-        command="drop_duplicates",
-        params={"subset": ["employee_id"]}
-    ))
-    print(f"Quality: {result.observation.quality_score:.2%}")
-
-    result = env.step(DataJanitorAction(command="submit"))
-    print(f"Final score: {result.reward:.4f}")
 ```
 
 ## License
