@@ -1,0 +1,28 @@
+name: data-janitor-env
+version: "1.0.0"
+description: >
+  Train AI agents to clean messy real-world data. Simulates the data wrangling
+  tasks that consume 80% of every data scientist's time: deduplication, type
+  conversion, format standardization, dataset merging, and quality validation.
+
+tasks:
+  - id: fix_basics
+    name: Fix the Basics
+    difficulty: easy
+    description: >
+      Clean employee records with duplicate rows, string-typed ages,
+      inconsistent department names, messy emails, and currency-formatted salaries.
+
+  - id: normalize_chaos
+    name: Normalize the Chaos
+    difficulty: medium
+    description: >
+      Standardize customer contact data with dates in 5 formats,
+      phone numbers in 6 formats, mixed state names/codes, and inconsistent casing.
+
+  - id: pipeline_merge
+    name: Pipeline Merge
+    difficulty: hard
+    description: >
+      Join and reconcile two datasets (orders + products) with mismatched IDs,
+      incorrect totals, invalid quantities, mixed date formats, and dirty text.

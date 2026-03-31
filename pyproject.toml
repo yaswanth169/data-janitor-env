@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "data-janitor-env"
+version = "1.0.0"
+description = "OpenEnv environment for training AI agents to clean messy real-world data"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "openenv-core>=0.2.2",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+server = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+]
+inference = [
+    "openai>=1.0.0",
+    "websockets>=12.0",
+]
+dev = [
+    "pytest>=7.0",
+    "requests>=2.25.0",
+]
+
+[project.scripts]
+server = "server.app:main"
+
+[tool.setuptools.packages.find]
+include = ["data_janitor_env*", "server*"]
