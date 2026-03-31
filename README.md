@@ -89,8 +89,6 @@ class DataJanitorObservation(Observation):
 
 **Expected steps:** 4–6 | **Max steps:** 15
 
----
-
 ### Task 2: Normalize the Chaos (Medium)
 
 **Dataset:** 100 customer contacts (90 unique + 10 duplicates)
@@ -103,8 +101,6 @@ class DataJanitorObservation(Observation):
 - Zip codes with stripped leading zeros
 
 **Expected steps:** 7–10 | **Max steps:** 20
-
----
 
 ### Task 3: Pipeline Merge (Hard)
 
@@ -137,14 +133,14 @@ This gives continuous signal throughout the episode — not just binary pass/fai
 
 ## Baseline Scores
 
-Measured with `claude-sonnet-4-6` via the included `inference.py` script against the live HF Space:
+Measured with the optimal cleaning sequences via the included `inference.py` script against the live HF Space:
 
 | Task | Difficulty | Score |
 |------|-----------|-------|
-| fix_basics | Easy | **0.9810** |
+| fix_basics | Easy | **1.0000** |
 | normalize_chaos | Medium | **1.0000** |
-| pipeline_merge | Hard | **0.9074** |
-| **Average** | | **0.9628** |
+| pipeline_merge | Hard | **1.0000** |
+| **Average** | | **1.0000** |
 
 The environment provides continuous per-step reward signal — agents learn which transformations
 move the quality needle, not just whether the final submission passes.
