@@ -1,3 +1,14 @@
+---
+title: Data Janitor Env
+emoji: 🧹
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+tags:
+  - openenv
+---
+
 # Data Janitor Env
 
 An OpenEnv environment for training AI agents to clean messy real-world data.
