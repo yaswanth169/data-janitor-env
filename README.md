@@ -149,12 +149,12 @@ move the quality needle, not just whether the final submission passes.
 
 ![Data Janitor Architecture](Archi.png)
 
-```
+
 Three tasks of increasing difficulty, all seeded deterministically:
   Task 1 (fix_basics)      — 40 employee records,  15-step budget
   Task 2 (normalize_chaos) — 100 customer contacts, 20-step budget
   Task 3 (pipeline_merge)  — 80 orders + 30 products join, 30-step budget
-```
+
 
 ## Quick Start
 
