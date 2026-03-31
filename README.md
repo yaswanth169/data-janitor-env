@@ -149,7 +149,7 @@ move the quality needle, not just whether the final submission passes.
 
 ```
 <p align="center">
-  <img src="assets/Archi.png" alt="Data Janitor Architecture" width="900" />
+  <img src="Archi.png" alt="Data Janitor Architecture" width="900" />
 </p>
 
 Three tasks of increasing difficulty, all seeded deterministically:
