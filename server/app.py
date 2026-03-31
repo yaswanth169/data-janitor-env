@@ -29,11 +29,26 @@ _IFRAME_HEADERS = {
 }
 
 
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def dashboard():
+def _serve_dashboard():
     with open(os.path.join(_STATIC, "index.html"), encoding="utf-8") as f:
         content = f.read()
     return HTMLResponse(content=content, headers=_IFRAME_HEADERS)
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def dashboard_root():
+    return _serve_dashboard()
+
+
+# HF Spaces App tab hits /web when ENABLE_WEB_INTERFACE=true is set
+@app.get("/web", response_class=HTMLResponse, include_in_schema=False)
+async def dashboard_web():
+    return _serve_dashboard()
+
+
+@app.get("/web/", response_class=HTMLResponse, include_in_schema=False)
+async def dashboard_web_slash():
+    return _serve_dashboard()
 
 
 def main():
