@@ -2,10 +2,11 @@
 Baseline inference script for data-janitor-env.
 
 Required environment variables:
-    API_BASE_URL   LLM API endpoint (default: https://router.huggingface.co/v1)
-    MODEL_NAME     Model identifier for inference
-    HF_TOKEN       Hugging Face / API key
-    ENV_BASE_URL   Environment server URL (default: http://localhost:7860)
+    API_BASE_URL    LLM API endpoint (default: https://router.huggingface.co/v1)
+    MODEL_NAME      Model identifier for inference
+    OPENAI_API_KEY  OpenAI-compatible API key (or HF_TOKEN / API_KEY)
+    HF_TOKEN        Hugging Face / API key (alternative to OPENAI_API_KEY)
+    ENV_BASE_URL    Environment server URL (default: deployed HF Space)
 """
 
 import asyncio
@@ -17,10 +18,10 @@ from typing import Any, Dict, Optional
 
 from openai import OpenAI
 
-ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")
+ENV_BASE_URL = os.getenv("ENV_BASE_URL", "https://yaswanth169-data-janitor-env.hf.space")
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
+API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
 MODEL_NAME = os.getenv("MODEL_NAME", "")
 
 TASK_IDS = ["fix_basics", "normalize_chaos", "pipeline_merge"]
