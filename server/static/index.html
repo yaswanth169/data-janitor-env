@@ -265,10 +265,10 @@
       <div class="sec-title">Baseline Reference</div>
       <table class="scores-table">
         <tbody>
-          <tr><td style="color:var(--text-muted)">fix_basics</td><td style="color:var(--green)">98.10%</td></tr>
-          <tr><td style="color:var(--text-muted)">normalize_chaos</td><td style="color:var(--green)">100.00%</td></tr>
-          <tr><td style="color:var(--text-muted)">pipeline_merge</td><td style="color:var(--yellow)">90.74%</td></tr>
-          <tr class="avg-row"><td>Average</td><td style="color:var(--accent)">96.28%</td></tr>
+          <tr><td style="color:var(--text-muted)">fix_basics</td><td style="color:var(--green)">100.0%</td></tr>
+          <tr><td style="color:var(--text-muted)">normalize_chaos</td><td style="color:var(--green)">100.0%</td></tr>
+          <tr><td style="color:var(--text-muted)">pipeline_merge</td><td style="color:var(--green)">100.0%</td></tr>
+          <tr class="avg-row"><td>Average</td><td style="color:var(--accent)">100.0%</td></tr>
         </tbody>
       </table>
     </div>
@@ -532,35 +532,38 @@ function fmtAction(a) {
 // ── Baseline sequences ───────────────────────────────────────────────────────
 const BASELINES = {
   fix_basics: [
-    {command:'drop_duplicates', column:null,       params:{subset:['employee_id']}},
-    {command:'convert_type',    column:'age',       params:{target_type:'int'}},
-    {command:'normalize_text',  column:'department',params:{operation:'lower'}},
-    {command:'normalize_text',  column:'email',     params:{operation:'trim'}},
-    {command:'normalize_text',  column:'email',     params:{operation:'lower'}},
-    {command:'normalize_text',  column:'salary',    params:{operation:'regex_replace',pattern:'[$,]',replacement:''}},
-    {command:'convert_type',    column:'salary',    params:{target_type:'float'}},
-    {command:'submit',          column:null,        params:{}},
+    {command:'drop_duplicates', column:null,         params:{subset:['employee_id']}},
+    {command:'convert_type',    column:'age',         params:{target_type:'int'}},
+    {command:'normalize_text',  column:'email',       params:{operation:'trim'}},
+    {command:'normalize_text',  column:'email',       params:{operation:'lower'}},
+    {command:'normalize_text',  column:'salary',      params:{operation:'regex_replace',pattern:'[$,]',replacement:''}},
+    {command:'convert_type',    column:'salary',      params:{target_type:'float'}},
+    {command:'map_values',      column:'department',  params:{mapping:{"Ops":"Operations","Engg":"Engineering","OPERATIONS":"Operations","FINANCE":"Finance","MARKETING":"Marketing","Mktg":"Marketing","engineering":"Engineering","finance":"Finance","hr":"HR","marketing":"Marketing","sales":"Sales"}}},
+    {command:'submit',          column:null,          params:{}},
   ],
   normalize_chaos: [
-    {command:'drop_duplicates',    column:null,         params:{subset:['contact_id']}},
-    {command:'standardize_date',   column:'signup_date',params:{format:'%Y-%m-%d'}},
-    {command:'standardize_phone',  column:'phone',      params:{}},
-    {command:'normalize_text',     column:'name',       params:{operation:'title'}},
-    {command:'map_values',         column:'state',      params:{mapping:{"California":"CA","Texas":"TX","New York":"NY","Florida":"FL","Illinois":"IL","Pennsylvania":"PA","Ohio":"OH","Georgia":"GA","Michigan":"MI","Washington":"WA","Colorado":"CO","Arizona":"AZ"}}},
-    {command:'submit',             column:null,         params:{}},
+    {command:'drop_duplicates',   column:null,          params:{subset:['id']}},
+    {command:'standardize_date',  column:'signup_date', params:{format:'%Y-%m-%d'}},
+    {command:'standardize_phone', column:'phone',       params:{}},
+    {command:'normalize_text',    column:'first_name',  params:{operation:'title'}},
+    {command:'normalize_text',    column:'last_name',   params:{operation:'title'}},
+    {command:'normalize_text',    column:'email',       params:{operation:'lower'}},
+    {command:'map_values',        column:'state',       params:{mapping:{"California":"CA","Texas":"TX","New York":"NY","Florida":"FL","Illinois":"IL","Pennsylvania":"PA","Ohio":"OH","Georgia":"GA","Michigan":"MI","Washington":"WA","Colorado":"CO","Arizona":"AZ"}}},
+    {command:'convert_type',      column:'zip_code',    params:{target_type:'str'}},
+    {command:'submit',            column:null,          params:{}},
   ],
   pipeline_merge: [
-    {command:'normalize_text', column:'product_id',   params:{operation:'regex_replace', pattern:'-',           replacement:''}},
-    {command:'normalize_text', column:'product_id',   params:{operation:'upper'}},
-    {command:'normalize_text', column:'product_id',   params:{operation:'regex_replace', pattern:'([A-Z]+)(\\d+)', replacement:'\\1-\\2'}},
-    {command:'join',           column:null,           params:{on:'product_id', how:'left'}},
-    {command:'normalize_text', column:'unit_price',   params:{operation:'regex_replace', pattern:'[$,]',         replacement:''}},
-    {command:'convert_type',   column:'unit_price',   params:{target_type:'float'}},
-    {command:'filter_rows',    column:'quantity',     params:{operator:'<=', value:0}},
-    {command:'standardize_date',column:'order_date',  params:{format:'%Y-%m-%d'}},
-    {command:'normalize_text', column:'customer_name',params:{operation:'title'}},
-    {command:'add_column',     column:'total_amount', params:{expression:'quantity * unit_price'}},
-    {command:'submit',         column:null,           params:{}},
+    {command:'normalize_text',   column:'product_id',    params:{operation:'regex_replace', pattern:'-',            replacement:''}},
+    {command:'normalize_text',   column:'product_id',    params:{operation:'upper'}},
+    {command:'normalize_text',   column:'product_id',    params:{operation:'regex_replace', pattern:'([A-Z]+)(\\d+)', replacement:'\\1-\\2'}},
+    {command:'join',             column:null,            params:{on:'product_id', how:'left'}},
+    {command:'normalize_text',   column:'unit_price',    params:{operation:'regex_replace', pattern:'[$,]',          replacement:''}},
+    {command:'convert_type',     column:'unit_price',    params:{target_type:'float'}},
+    {command:'filter_rows',      column:'quantity',      params:{operator:'<=', value:0}},
+    {command:'standardize_date', column:'order_date',    params:{format:'%Y-%m-%d'}},
+    {command:'normalize_text',   column:'customer_name', params:{operation:'title'}},
+    {command:'add_column',       column:'total',         params:{expression:'quantity * unit_price'}},
+    {command:'submit',           column:null,            params:{}},
   ],
 };
 

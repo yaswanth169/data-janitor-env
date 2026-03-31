@@ -27,13 +27,19 @@ print()
 # ── 2. Manual cleaning sequence ─────────────────────────────────────────────
 cleaning_steps = [
     env.action_from_dict("drop_duplicates", params={"subset": ["employee_id"]}),
-    env.action_from_dict("convert_type", column="age",       params={"target_type": "int"}),
-    env.action_from_dict("normalize_text", column="department", params={"operation": "lower"}),
-    env.action_from_dict("normalize_text", column="email",    params={"operation": "lower"}),
-    env.action_from_dict("normalize_text", column="salary",   params={"operation": "regex_replace",
-                                                                        "pattern": r"[$,]",
-                                                                        "replacement": ""}),
-    env.action_from_dict("convert_type", column="salary",    params={"target_type": "float"}),
+    env.action_from_dict("convert_type",   column="age",        params={"target_type": "int"}),
+    env.action_from_dict("normalize_text", column="email",      params={"operation": "trim"}),
+    env.action_from_dict("normalize_text", column="email",      params={"operation": "lower"}),
+    env.action_from_dict("normalize_text", column="salary",     params={"operation": "regex_replace",
+                                                                          "pattern": r"[$,]",
+                                                                          "replacement": ""}),
+    env.action_from_dict("convert_type",   column="salary",     params={"target_type": "float"}),
+    env.action_from_dict("map_values",     column="department", params={"mapping": {
+        "Ops": "Operations", "Engg": "Engineering", "OPERATIONS": "Operations",
+        "FINANCE": "Finance", "MARKETING": "Marketing", "Mktg": "Marketing",
+        "engineering": "Engineering", "finance": "Finance",
+        "hr": "HR", "marketing": "Marketing", "sales": "Sales",
+    }}),
     env.action_from_dict("submit"),
 ]
 

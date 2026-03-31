@@ -1,6 +1,8 @@
 import os
 
 import uvicorn
+from fastapi import Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from openenv.core.env_server import create_fastapi_app
 
@@ -9,13 +11,29 @@ from models import DataJanitorAction, DataJanitorObservation
 
 app = create_fastapi_app(DataJanitorEnvironment, DataJanitorAction, DataJanitorObservation)
 
+# Allow embedding in HF Spaces iframe and cross-origin API calls
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 _STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+_IFRAME_HEADERS = {
+    "X-Frame-Options": "ALLOWALL",
+    "Content-Security-Policy": "frame-ancestors *",
+    "Cache-Control": "no-store",
+}
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def dashboard():
     with open(os.path.join(_STATIC, "index.html"), encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+        content = f.read()
+    return HTMLResponse(content=content, headers=_IFRAME_HEADERS)
 
 
 def main():
