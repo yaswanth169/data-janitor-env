@@ -147,11 +147,8 @@ move the quality needle, not just whether the final submission passes.
 
 ## Architecture
 
-```
-<p align="center">
-  <img src="./Archi.png" alt="Data Janitor Architecture" width="900" />
-</p>
-```
+![Data Janitor Architecture](https://huggingface.co/spaces/yaswanth169/data-janitor-env/resolve/main/Archi.png)
+
 ```
 Three tasks of increasing difficulty, all seeded deterministically:
   Task 1 (fix_basics)      — 40 employee records,  15-step budget
