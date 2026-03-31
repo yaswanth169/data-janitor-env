@@ -148,33 +148,8 @@ move the quality needle, not just whether the final submission passes.
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     LLM Agent (your model)                  │
-│  observe → reason → act  (multi-turn conversation loop)     │
-└─────────────────────┬───────────────────────────────────────┘
-                      │  WebSocket  {"type":"step","data":{...}}
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│              FastAPI Server  (openenv-core)                 │
-│  /ws  stateful session  │  /health  │  /docs  │  / (UI)     │
-└──────────┬──────────────┴───────────────────────────────────┘
-           │
-    ┌──────▼──────────────────────────────────────────────────┐
-    │          DataJanitorEnvironment                         │
-    │  reset(task_id) → dirty dataset + observation           │
-    │  step(action)   → transform + grade + reward            │
-    └──────┬──────────────────────────────┬───────────────────┘
-           │                              │
-    ┌──────▼──────────┐          ┌────────▼────────────────────┐
-    │   DataEngine    │          │      Grader                 │
-    │  16 commands    │          │  cell-by-cell comparison    │
-    │  drop_dup       │          │  vs ground-truth dataset    │
-    │  fill_missing   │          │  numeric tol ±0.02          │
-    │  convert_type   │          │  case-insensitive strings   │
-    │  normalize_text │          │  quality = correct/total    │
-    │  standardize_*  │          └─────────────────────────────┘
-    │  join / merge   │
-    └─────────────────┘
+<img width="1069" height="555" alt="image" src="https://github.com/user-attachments/assets/10a19cfc-4ee0-4225-ac4c-74672dfbfdfb" />
+
 
 Three tasks of increasing difficulty, all seeded deterministically:
   Task 1 (fix_basics)      — 40 employee records,  15-step budget
