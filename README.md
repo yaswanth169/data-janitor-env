@@ -137,14 +137,54 @@ This gives continuous signal throughout the episode — not just binary pass/fai
 
 ## Baseline Scores
 
-| Task | Difficulty | Baseline Score |
-|------|-----------|----------------|
-| fix_basics | Easy | ~0.90 |
-| normalize_chaos | Medium | ~0.75 |
-| pipeline_merge | Hard | ~0.55 |
+Measured with `claude-sonnet-4-6` via the included `inference.py` script against the live HF Space:
 
-Scores measured with a standard instruction-following model via the included
-`inference.py` script.
+| Task | Difficulty | Score |
+|------|-----------|-------|
+| fix_basics | Easy | **0.9810** |
+| normalize_chaos | Medium | **1.0000** |
+| pipeline_merge | Hard | **0.9074** |
+| **Average** | | **0.9628** |
+
+The environment provides continuous per-step reward signal — agents learn which transformations
+move the quality needle, not just whether the final submission passes.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     LLM Agent (your model)                  │
+│  observe → reason → act  (multi-turn conversation loop)     │
+└─────────────────────┬───────────────────────────────────────┘
+                      │  WebSocket  {"type":"step","data":{...}}
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│              FastAPI Server  (openenv-core)                 │
+│  /ws  stateful session  │  /health  │  /docs  │  / (UI)     │
+└──────────┬──────────────┴───────────────────────────────────┘
+           │
+    ┌──────▼──────────────────────────────────────────────────┐
+    │          DataJanitorEnvironment                         │
+    │  reset(task_id) → dirty dataset + observation           │
+    │  step(action)   → transform + grade + reward            │
+    └──────┬──────────────────────────────┬───────────────────┘
+           │                              │
+    ┌──────▼──────────┐          ┌────────▼────────────────────┐
+    │   DataEngine    │          │      Grader                 │
+    │  16 commands    │          │  cell-by-cell comparison    │
+    │  drop_dup       │          │  vs ground-truth dataset    │
+    │  fill_missing   │          │  numeric tol ±0.02          │
+    │  convert_type   │          │  case-insensitive strings   │
+    │  normalize_text │          │  quality = correct/total    │
+    │  standardize_*  │          └─────────────────────────────┘
+    │  join / merge   │
+    └─────────────────┘
+
+Three tasks of increasing difficulty, all seeded deterministically:
+  Task 1 (fix_basics)      — 40 employee records,  15-step budget
+  Task 2 (normalize_chaos) — 100 customer contacts, 20-step budget
+  Task 3 (pipeline_merge)  — 80 orders + 30 products join, 30-step budget
+```
 
 ## Setup
 

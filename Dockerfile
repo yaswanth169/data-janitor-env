@@ -11,6 +11,7 @@ COPY server/environment.py .
 COPY server/engine.py .
 COPY server/graders.py .
 COPY server/task_data.py .
+COPY server/static/ ./static/
 
 EXPOSE 7860
 

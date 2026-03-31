@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Janitor Env — Interactive Dashboard</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #1c2128;
+      --border: #30363d;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --purple: #bc8cff;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.5; }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header h1 { font-size: 17px; font-weight: 600; }
+    .badge { background: #1f6feb33; color: var(--accent); border: 1px solid #1f6feb55; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: #23863633; color: var(--green); border: 1px solid #23863655; }
+    .badge-yellow { background: #d2992233; color: var(--yellow); border: 1px solid #d2992255; }
+    .badge-red { background: #f8514933; color: var(--red); border: 1px solid #f8514955; }
+    .status-pill {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); transition: background 0.3s; }
+    .status-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    .layout { display: grid; grid-template-columns: 280px 1fr; height: calc(100vh - 49px); overflow: hidden; }
+
+    /* ── Sidebar ────────────────────────────────────────────── */
+    .sidebar { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+    .sidebar-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .sec-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 10px; }
+
+    .task-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .task-card:hover { border-color: #58a6ff66; background: #1f3a5f22; }
+    .task-card.active { border-color: var(--accent); background: #1f3a5f44; }
+    .task-card-top { display: flex; justify-content: space-between; align-items: baseline; }
+    .task-name { font-weight: 600; font-size: 13px; }
+    .task-score-chip { font-size: 12px; font-weight: 700; color: var(--text-muted); }
+    .task-score-chip.good { color: var(--green); }
+    .task-score-chip.mid { color: var(--yellow); }
+    .task-score-chip.low { color: var(--red); }
+    .task-meta { color: var(--text-muted); font-size: 11px; margin-top: 2px; }
+
+    /* Score gauge */
+    .score-wrap { text-align: center; padding: 8px 0 12px; }
+    .score-big { font-size: 42px; font-weight: 700; color: var(--green); line-height: 1; font-variant-numeric: tabular-nums; }
+    .score-big.mid { color: var(--yellow); }
+    .score-big.low { color: var(--red); }
+    .score-lbl { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .prog-track { height: 5px; background: var(--border); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+    .prog-fill { height: 100%; background: var(--green); border-radius: 3px; transition: width 0.4s cubic-bezier(0.4,0,0.2,1); }
+    .prog-fill.mid { background: var(--yellow); }
+    .prog-fill.low { background: var(--red); }
+    .stat-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 5px; }
+    .stat-row .val { color: var(--text); font-weight: 600; }
+
+    /* Buttons */
+    .btn { padding: 7px 13px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.12s; color: var(--text); background: var(--surface2); white-space: nowrap; }
+    .btn:hover { background: #30363d; border-color: #58a6ff55; }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .btn-blue { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+    .btn-blue:hover { background: #388bfd; border-color: #388bfd; }
+    .btn-green { background: #238636; border-color: #238636; color: #fff; }
+    .btn-green:hover { background: #2ea043; border-color: #2ea043; }
+    .btn-red { background: #6e2b2b; border-color: #6e2b2b; color: #ffa198; }
+    .btn-red:hover { background: #8a3535; }
+    .btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    /* Scores table */
+    .scores-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+    .scores-table td { padding: 4px 0; }
+    .scores-table td:last-child { text-align: right; font-weight: 700; }
+    .scores-table tr:not(:last-child) td { border-bottom: 1px solid var(--border); }
+    .scores-table .avg-row td { padding-top: 8px; font-weight: 700; color: var(--accent); }
+
+    /* ── Main ───────────────────────────────────────────────── */
+    .main { display: grid; grid-template-rows: 1fr 200px 56px; overflow: hidden; }
+
+    /* Observation panels */
+    .obs-area { padding: 14px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; overflow-y: auto; align-content: start; }
+
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .panel.col2 { grid-column: span 2; }
+    .ph { padding: 8px 13px; background: var(--surface2); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; }
+    .pb { padding: 10px 13px; font-size: 13px; }
+
+    .issue-row { padding: 3px 0; border-bottom: 1px solid #30363d44; display: flex; gap: 7px; align-items: flex-start; font-size: 12px; }
+    .issue-row:last-child { border-bottom: none; }
+    .issue-icon { color: var(--yellow); flex-shrink: 0; font-size: 11px; margin-top: 2px; }
+
+    .schema-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; border-bottom: 1px solid #30363d33; font-size: 12px; }
+    .schema-row:last-child { border-bottom: none; }
+    .schema-name { font-family: 'Cascadia Code', 'Fira Code', monospace; color: var(--accent); font-size: 11px; }
+    .schema-right { text-align: right; }
+    .schema-type { color: var(--purple); font-size: 11px; font-family: monospace; }
+    .schema-nulls { color: var(--text-muted); font-size: 10px; }
+
+    .data-table-wrap { overflow-x: auto; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 11px; font-family: 'Cascadia Code', 'Fira Code', monospace; white-space: nowrap; }
+    .data-table th { padding: 5px 10px; background: var(--surface2); color: var(--text-muted); font-weight: 600; text-align: left; border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+    .data-table td { padding: 4px 10px; border-bottom: 1px solid #30363d44; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: #21262d; }
+
+    .empty-state { grid-column: span 2; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px; color: var(--text-muted); gap: 10px; text-align: center; }
+    .empty-icon { font-size: 52px; }
+    .empty-title { font-size: 16px; font-weight: 600; color: var(--text); }
+    .empty-sub { font-size: 13px; max-width: 320px; }
+
+    /* ── Log ────────────────────────────────────────────────── */
+    .log-area { border-top: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    .log-head { padding: 6px 14px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .log-head-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+    .log-body { flex: 1; overflow-y: auto; padding: 6px 14px; font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace; font-size: 12px; }
+    .le { padding: 1px 0; display: flex; gap: 8px; }
+    .le .ts { color: #4d5566; flex-shrink: 0; }
+    .le.cmd .msg { color: var(--accent); }
+    .le.ok .msg { color: var(--green); }
+    .le.err .msg { color: var(--red); }
+    .le.info .msg { color: var(--text-muted); }
+    .le.warn .msg { color: var(--yellow); }
+
+    /* ── Action bar ─────────────────────────────────────────── */
+    .action-bar { background: var(--surface); border-top: 1px solid var(--border); padding: 8px 14px; display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+    .fg { display: flex; flex-direction: column; gap: 3px; }
+    .fg label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+    select, input[type=text] { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 5px 9px; font-size: 12px; transition: border-color 0.12s; }
+    select:focus, input[type=text]:focus { outline: none; border-color: var(--accent); }
+    select { cursor: pointer; }
+
+    /* Spinner */
+    .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid #ffffff44; border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+    /* Responsive */
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .obs-area { grid-template-columns: 1fr; }
+      .panel.col2 { grid-column: span 1; }
+      .empty-state { grid-column: span 1; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:22px; line-height:1">🧹</span>
+  <h1>Data Janitor Env</h1>
+  <span class="badge">OpenEnv</span>
+  <div class="status-pill">
+    <div class="status-dot" id="dot"></div>
+    <span id="connLabel">Disconnected</span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ── Sidebar ───────────────────────────────────────── -->
+  <div class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="sec-title">Tasks</div>
+      <div class="task-card" id="card-fix_basics" onclick="selectTask('fix_basics')">
+        <div class="task-card-top">
+          <span class="task-name">Fix the Basics</span>
+          <span class="task-score-chip" id="chip-fix_basics">—</span>
+        </div>
+        <div class="task-meta">Easy &nbsp;·&nbsp; 40 rows &nbsp;·&nbsp; max 15 steps</div>
+      </div>
+      <div class="task-card" id="card-normalize_chaos" onclick="selectTask('normalize_chaos')">
+        <div class="task-card-top">
+          <span class="task-name">Normalize the Chaos</span>
+          <span class="task-score-chip" id="chip-normalize_chaos">—</span>
+        </div>
+        <div class="task-meta">Medium &nbsp;·&nbsp; 100 rows &nbsp;·&nbsp; max 20 steps</div>
+      </div>
+      <div class="task-card" id="card-pipeline_merge" onclick="selectTask('pipeline_merge')">
+        <div class="task-card-top">
+          <span class="task-name">Pipeline Merge</span>
+          <span class="task-score-chip" id="chip-pipeline_merge">—</span>
+        </div>
+        <div class="task-meta">Hard &nbsp;·&nbsp; 80+30 rows &nbsp;·&nbsp; max 30 steps</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sec-title">Current Session</div>
+      <div class="score-wrap">
+        <div class="score-big" id="scoreBig">—</div>
+        <div class="score-lbl">Quality Score</div>
+        <div class="prog-track"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+        <div class="stat-row">
+          <span>Steps <span class="val" id="stepsVal">0/0</span></span>
+          <span>Rows <span class="val" id="rowsVal">—</span></span>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-blue" id="btnReset" onclick="doReset()" title="Reset selected task">⟳ Reset</button>
+        <button class="btn btn-green" id="btnBaseline" onclick="doBaseline()" title="Run the built-in baseline agent">▶ Baseline</button>
+        <button class="btn btn-red" id="btnSubmit" onclick="doSubmit()" title="Submit and get final score">✓ Submit</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sec-title">Session Scores</div>
+      <table class="scores-table">
+        <tbody>
+          <tr><td style="color:var(--text-muted)">fix_basics</td><td id="fs-fix_basics">—</td></tr>
+          <tr><td style="color:var(--text-muted)">normalize_chaos</td><td id="fs-normalize_chaos">—</td></tr>
+          <tr><td style="color:var(--text-muted)">pipeline_merge</td><td id="fs-pipeline_merge">—</td></tr>
+          <tr class="avg-row"><td>Average</td><td id="fs-avg">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sec-title">Baseline Reference</div>
+      <table class="scores-table">
+        <tbody>
+          <tr><td style="color:var(--text-muted)">fix_basics</td><td style="color:var(--green)">98.10%</td></tr>
+          <tr><td style="color:var(--text-muted)">normalize_chaos</td><td style="color:var(--green)">100.00%</td></tr>
+          <tr><td style="color:var(--text-muted)">pipeline_merge</td><td style="color:var(--yellow)">90.74%</td></tr>
+          <tr class="avg-row"><td>Average</td><td style="color:var(--accent)">96.28%</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sidebar-section" style="font-size:11px; color:var(--text-muted); line-height:1.7">
+      <div class="sec-title">About</div>
+      Structured RL environment for training AI agents to clean messy real-world datasets.
+      16 transformation commands &nbsp;·&nbsp; 3 difficulty tiers &nbsp;·&nbsp; deterministic grading
+      <div style="margin-top:8px">
+        <a href="/docs" style="color:var(--accent); text-decoration:none">API Docs ↗</a>
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- ── Main area ──────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- Observation panels -->
+    <div class="obs-area" id="obsArea">
+      <div class="empty-state">
+        <div class="empty-icon">🧹</div>
+        <div class="empty-title">Select a task to begin</div>
+        <div class="empty-sub">Choose a task from the sidebar, then click Reset to load the dataset and start cleaning.</div>
+      </div>
+    </div>
+
+    <!-- Action log -->
+    <div class="log-area">
+      <div class="log-head">
+        <span class="log-head-title">Action Log</span>
+        <button class="btn" style="padding:2px 8px;font-size:11px" onclick="clearLog()">Clear</button>
+      </div>
+      <div class="log-body" id="logBody">
+        <div class="le info"><span class="ts">—</span><span class="msg">Welcome to Data Janitor Env. Select a task and click Reset to start.</span></div>
+      </div>
+    </div>
+
+    <!-- Action builder -->
+    <div class="action-bar">
+      <div class="fg">
+        <label>Command</label>
+        <select id="cmdSel" onchange="onCmdChange()" style="width:150px">
+          <option>inspect</option>
+          <option>drop_duplicates</option>
+          <option>fill_missing</option>
+          <option>drop_nulls</option>
+          <option>convert_type</option>
+          <option>normalize_text</option>
+          <option>standardize_date</option>
+          <option>standardize_phone</option>
+          <option>rename_column</option>
+          <option>map_values</option>
+          <option>filter_rows</option>
+          <option>split_column</option>
+          <option>merge_columns</option>
+          <option>join</option>
+          <option>add_column</option>
+          <option>submit</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Column</label>
+        <input type="text" id="colInp" placeholder="column name" style="width:130px">
+      </div>
+      <div id="dynParams" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap"></div>
+      <button class="btn btn-blue" id="btnStep" onclick="doStep()" style="margin-left:auto">Step →</button>
+    </div>
+
+  </div><!-- /main -->
+
+</div><!-- /layout -->
+
+<script>
+"use strict";
+
+// ── State ────────────────────────────────────────────────────────────────────
+let ws = null;
+let curTask = null;
+let pendingCb = null;
+let sessionScores = {};
+let isRunning = false;
+
+// ── Param field definitions ──────────────────────────────────────────────────
+const PARAM_DEFS = {
+  fill_missing: [
+    {id:'strategy', label:'Strategy', type:'sel', opts:['mean','median','mode','constant']},
+    {id:'value',    label:'Value',    type:'txt', ph:'fill value'},
+  ],
+  convert_type: [
+    {id:'target_type', label:'Target Type', type:'sel', opts:['int','float','str']},
+  ],
+  normalize_text: [
+    {id:'operation',   label:'Operation',   type:'sel', opts:['trim','lower','upper','title','regex_replace']},
+    {id:'pattern',     label:'Pattern',     type:'txt', ph:'regex pattern'},
+    {id:'replacement', label:'Replacement', type:'txt', ph:'replacement'},
+  ],
+  standardize_date: [
+    {id:'format', label:'Format', type:'txt', ph:'%Y-%m-%d'},
+  ],
+  rename_column: [
+    {id:'new_name', label:'New Name', type:'txt', ph:'new column name'},
+  ],
+  map_values: [
+    {id:'mapping', label:'Mapping (JSON)', type:'txt', ph:'{"old":"new"}'},
+  ],
+  filter_rows: [
+    {id:'operator', label:'Operator', type:'sel', opts:['==','!=','>','<','>=','<=']},
+    {id:'value',    label:'Value',    type:'txt', ph:'threshold'},
+  ],
+  split_column: [
+    {id:'delimiter',   label:'Delimiter',    type:'txt', ph:','},
+    {id:'new_columns', label:'New Cols (a,b)', type:'txt', ph:'col_a,col_b'},
+  ],
+  merge_columns: [
+    {id:'columns',    label:'Columns (a,b)', type:'txt', ph:'col_a,col_b'},
+    {id:'new_column', label:'New Column',    type:'txt', ph:'merged'},
+    {id:'separator',  label:'Separator',     type:'txt', ph:' '},
+  ],
+  join: [
+    {id:'on',  label:'Join On', type:'txt', ph:'key_column'},
+    {id:'how', label:'How',     type:'sel', opts:['inner','left']},
+  ],
+  add_column: [
+    {id:'expression', label:'Expression', type:'txt', ph:'col_a * col_b'},
+  ],
+  drop_duplicates: [
+    {id:'subset', label:'Subset (col1,col2)', type:'txt', ph:'optional'},
+  ],
+};
+
+function onCmdChange() {
+  const cmd = document.getElementById('cmdSel').value;
+  const c = document.getElementById('dynParams');
+  c.innerHTML = '';
+  (PARAM_DEFS[cmd] || []).forEach(f => {
+    const g = document.createElement('div');
+    g.className = 'fg';
+    g.innerHTML = `<label>${esc(f.label)}</label>`;
+    if (f.type === 'sel') {
+      const s = document.createElement('select');
+      s.id = 'p_' + f.id;
+      s.style.minWidth = '100px';
+      f.opts.forEach(o => { const opt = document.createElement('option'); opt.value = opt.textContent = o; s.appendChild(opt); });
+      g.appendChild(s);
+    } else {
+      const i = document.createElement('input');
+      i.type = 'text'; i.id = 'p_' + f.id; i.placeholder = f.ph || '';
+      i.style.width = f.id === 'mapping' ? '160px' : '120px';
+      g.appendChild(i);
+    }
+    c.appendChild(g);
+  });
+}
+onCmdChange();
+
+// ── WebSocket ────────────────────────────────────────────────────────────────
+function wsUrl() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${location.host}/ws`;
+}
+
+function connect(cb) {
+  if (ws && ws.readyState === WebSocket.OPEN) { cb(); return; }
+  log('info', 'Connecting to server...');
+  ws = new WebSocket(wsUrl());
+  ws.onopen = () => { setConn(true); log('ok', 'Connected'); cb(); };
+  ws.onclose = () => { setConn(false); log('err', 'Connection closed'); ws = null; pendingCb = null; };
+  ws.onerror = () => { setConn(false); log('err', 'WebSocket error'); };
+  ws.onmessage = e => {
+    let raw; try { raw = JSON.parse(e.data); } catch { return; }
+    const d = raw.data || raw;
+    const obs = d.observation || d;
+    const reward = (d.reward !== undefined) ? d.reward : null;
+    const done = d.done || false;
+    renderObs(obs);
+    if (pendingCb) { const cb = pendingCb; pendingCb = null; cb(obs, reward, done); }
+  };
+}
+
+function send(msg, cb) {
+  pendingCb = cb;
+  ws.send(JSON.stringify(msg));
+}
+
+function setConn(on) {
+  document.getElementById('dot').className = 'status-dot' + (on ? ' on' : '');
+  document.getElementById('connLabel').textContent = on ? 'Connected' : 'Disconnected';
+}
+
+// ── Task selection ───────────────────────────────────────────────────────────
+function selectTask(id) {
+  curTask = id;
+  document.querySelectorAll('.task-card').forEach(c => c.classList.remove('active'));
+  document.getElementById('card-' + id).classList.add('active');
+  log('info', `Selected task: ${id}`);
+}
+
+// ── Controls ─────────────────────────────────────────────────────────────────
+function doReset() {
+  if (!curTask) { log('err', 'Select a task first'); return; }
+  connect(() => {
+    log('cmd', `reset(${curTask})`);
+    send({type:'reset', data:{task_id: curTask}}, (obs, reward, done) => {
+      log('ok', `Ready · ${obs.row_count} rows · Quality: ${pct(obs.quality_score)}`);
+    });
+  });
+}
+
+function doSubmit() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { log('err', 'Not connected — click Reset first'); return; }
+  log('cmd', 'submit()');
+  send({type:'step', data:{command:'submit', column:null, params:{}}}, (obs, reward, done) => {
+    const s = reward !== null ? reward : obs.quality_score;
+    log('ok', `SUBMITTED — Final score: ${pct(s)}`);
+    recordScore(s);
+  });
+}
+
+function doStep() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { log('err', 'Not connected — click Reset first'); return; }
+  const action = buildAction();
+  if (!action) return;
+  log('cmd', fmtAction(action));
+  send({type:'step', data:action}, (obs, reward, done) => {
+    log('ok', `Quality: ${pct(obs.quality_score)} · Step ${obs.steps_taken}/${obs.max_steps} · Δ${reward !== null ? reward.toFixed(4) : 'n/a'}`);
+    if (obs.message) log('info', '  ' + obs.message);
+    if (done && reward !== null) recordScore(reward);
+  });
+}
+
+function buildAction() {
+  const cmd = document.getElementById('cmdSel').value;
+  const col = document.getElementById('colInp').value.trim() || null;
+  const defs = PARAM_DEFS[cmd] || [];
+  const params = {};
+  for (const f of defs) {
+    const el = document.getElementById('p_' + f.id);
+    if (!el) continue;
+    const v = el.value.trim();
+    if (!v) continue;
+    if (f.id === 'mapping') {
+      try { params[f.id] = JSON.parse(v); }
+      catch { log('err', 'mapping must be valid JSON, e.g. {"old":"new"}'); return null; }
+    } else if (['subset','new_columns','columns'].includes(f.id)) {
+      params[f.id] = v.split(',').map(s => s.trim()).filter(Boolean);
+    } else if (f.id === 'value') {
+      const n = parseFloat(v); params[f.id] = isNaN(n) ? v : n;
+    } else {
+      params[f.id] = v;
+    }
+  }
+  return {command:cmd, column:col, params};
+}
+
+function fmtAction(a) {
+  const p = Object.keys(a.params).length ? ' ' + JSON.stringify(a.params) : '';
+  return `${a.command}(${a.column||''})${p}`;
+}
+
+// ── Baseline sequences ───────────────────────────────────────────────────────
+const BASELINES = {
+  fix_basics: [
+    {command:'drop_duplicates', column:null,       params:{subset:['employee_id']}},
+    {command:'convert_type',    column:'age',       params:{target_type:'int'}},
+    {command:'normalize_text',  column:'department',params:{operation:'lower'}},
+    {command:'normalize_text',  column:'email',     params:{operation:'trim'}},
+    {command:'normalize_text',  column:'email',     params:{operation:'lower'}},
+    {command:'normalize_text',  column:'salary',    params:{operation:'regex_replace',pattern:'[$,]',replacement:''}},
+    {command:'convert_type',    column:'salary',    params:{target_type:'float'}},
+    {command:'submit',          column:null,        params:{}},
+  ],
+  normalize_chaos: [
+    {command:'drop_duplicates',    column:null,         params:{subset:['contact_id']}},
+    {command:'standardize_date',   column:'signup_date',params:{format:'%Y-%m-%d'}},
+    {command:'standardize_phone',  column:'phone',      params:{}},
+    {command:'normalize_text',     column:'name',       params:{operation:'title'}},
+    {command:'map_values',         column:'state',      params:{mapping:{"California":"CA","Texas":"TX","New York":"NY","Florida":"FL","Illinois":"IL","Pennsylvania":"PA","Ohio":"OH","Georgia":"GA","Michigan":"MI","Washington":"WA","Colorado":"CO","Arizona":"AZ"}}},
+    {command:'submit',             column:null,         params:{}},
+  ],
+  pipeline_merge: [
+    {command:'normalize_text', column:'product_id',   params:{operation:'regex_replace', pattern:'-',           replacement:''}},
+    {command:'normalize_text', column:'product_id',   params:{operation:'upper'}},
+    {command:'normalize_text', column:'product_id',   params:{operation:'regex_replace', pattern:'([A-Z]+)(\\d+)', replacement:'\\1-\\2'}},
+    {command:'join',           column:null,           params:{on:'product_id', how:'left'}},
+    {command:'normalize_text', column:'unit_price',   params:{operation:'regex_replace', pattern:'[$,]',         replacement:''}},
+    {command:'convert_type',   column:'unit_price',   params:{target_type:'float'}},
+    {command:'filter_rows',    column:'quantity',     params:{operator:'<=', value:0}},
+    {command:'standardize_date',column:'order_date',  params:{format:'%Y-%m-%d'}},
+    {command:'normalize_text', column:'customer_name',params:{operation:'title'}},
+    {command:'add_column',     column:'total_amount', params:{expression:'quantity * unit_price'}},
+    {command:'submit',         column:null,           params:{}},
+  ],
+};
+
+async function doBaseline() {
+  if (!curTask) { log('err', 'Select a task first'); return; }
+  const seq = BASELINES[curTask];
+  if (!seq) { log('err', 'No baseline defined for this task'); return; }
+  if (isRunning) return;
+  isRunning = true;
+  setBtns(true);
+  connect(async () => {
+    log('cmd', `reset(${curTask}) — starting baseline run`);
+    await step({type:'reset', data:{task_id:curTask}}, (obs) => {
+      log('ok', `Reset · ${obs.row_count} rows · Quality: ${pct(obs.quality_score)}`);
+    });
+    for (const action of seq) {
+      await delay(300);
+      log('cmd', fmtAction(action));
+      let done = false;
+      await step({type:'step', data:action}, (obs, reward, d) => {
+        done = d;
+        log('ok', `Quality: ${pct(obs.quality_score)} · Δ${reward !== null ? reward.toFixed(4) : 'n/a'}`);
+        if (obs.message) log('info', '  ' + obs.message);
+        if (d && reward !== null) recordScore(reward);
+      });
+      if (done) break;
+    }
+    isRunning = false;
+    setBtns(false);
+    log('info', `Baseline run complete for ${curTask}`);
+  });
+}
+
+function step(msg, cb) {
+  return new Promise(resolve => {
+    send(msg, (obs, reward, done) => {
+      cb(obs, reward, done);
+      resolve();
+    });
+  });
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function setBtns(running) {
+  document.getElementById('btnReset').disabled = running;
+  document.getElementById('btnBaseline').disabled = running;
+  document.getElementById('btnStep').disabled = running;
+  if (running) {
+    document.getElementById('btnBaseline').innerHTML = '<span class="spin"></span> Running';
+  } else {
+    document.getElementById('btnBaseline').innerHTML = '▶ Baseline';
+  }
+}
+
+// ── Scores ───────────────────────────────────────────────────────────────────
+function recordScore(s) {
+  if (!curTask) return;
+  sessionScores[curTask] = s;
+  const chip = document.getElementById('chip-' + curTask);
+  chip.textContent = pct(s);
+  chip.className = 'task-score-chip ' + (s >= 0.9 ? 'good' : s >= 0.6 ? 'mid' : 'low');
+  document.getElementById('fs-' + curTask).textContent = pct(s);
+  const vals = Object.values(sessionScores);
+  const avg = vals.reduce((a,b) => a+b, 0) / vals.length;
+  document.getElementById('fs-avg').textContent = pct(avg);
+}
+
+// ── Observation rendering ────────────────────────────────────────────────────
+function renderObs(obs) {
+  if (!obs) return;
+  const score = obs.quality_score || 0;
+
+  // Score display
+  const big = document.getElementById('scoreBig');
+  big.textContent = pct(score);
+  big.className = 'score-big' + (score >= 0.9 ? '' : score >= 0.6 ? ' mid' : ' low');
+  const fill = document.getElementById('progFill');
+  fill.style.width = (score * 100) + '%';
+  fill.className = 'prog-fill' + (score >= 0.9 ? '' : score >= 0.6 ? ' mid' : ' low');
+  document.getElementById('stepsVal').textContent = `${obs.steps_taken||0}/${obs.max_steps||0}`;
+  document.getElementById('rowsVal').textContent = obs.row_count ?? '—';
+
+  // Panels
+  const area = document.getElementById('obsArea');
+  area.innerHTML = '';
+
+  // Task description strip
+  if (obs.task_description) {
+    const d = document.createElement('div');
+    d.className = 'panel col2';
+    d.innerHTML = `<div class="ph">Task Description</div><div class="pb" style="font-size:13px;color:var(--text-muted)">${esc(obs.task_description)}</div>`;
+    area.appendChild(d);
+  }
+
+  // Issues panel
+  const ip = document.createElement('div');
+  ip.className = 'panel';
+  const issues = obs.issues || [];
+  const issueHtml = issues.length
+    ? issues.map(i => `<div class="issue-row"><span class="issue-icon">▲</span><span>${esc(i)}</span></div>`).join('')
+    : `<span style="color:var(--green);font-size:12px">✓ No issues detected</span>`;
+  ip.innerHTML = `<div class="ph"><span>Issues</span><span class="badge ${issues.length ? 'badge-yellow' : 'badge-green'}">${issues.length}</span></div><div class="pb">${issueHtml}</div>`;
+  area.appendChild(ip);
+
+  // Schema panel
+  const sp = document.createElement('div');
+  sp.className = 'panel';
+  const schemaHtml = (obs.schema_info || []).map(c => {
+    if (typeof c !== 'object') return `<div class="schema-row"><span>${esc(String(c))}</span></div>`;
+    return `<div class="schema-row">
+      <span class="schema-name">${esc(c.name||'')}</span>
+      <span class="schema-right">
+        <span class="schema-type">${esc(c.dtype||'')}</span>
+        <span class="schema-nulls">${c.null_count||0} null · ${c.unique_count||0} uniq</span>
+      </span>
+    </div>`;
+  }).join('');
+  sp.innerHTML = `<div class="ph"><span>Schema</span><span style="font-weight:400;text-transform:none;letter-spacing:normal;font-size:11px;color:var(--text-muted)">${(obs.schema_info||[]).length} cols</span></div><div class="pb">${schemaHtml || '—'}</div>`;
+  area.appendChild(sp);
+
+  // Sample rows table
+  if (obs.sample_rows && obs.sample_rows.length > 0) {
+    const cols = Object.keys(obs.sample_rows[0]);
+    const ths = cols.map(c => `<th>${esc(c)}</th>`).join('');
+    const trs = obs.sample_rows.slice(0,5).map(r =>
+      `<tr>${cols.map(c => `<td title="${esc(String(r[c]??''))}">${esc(String(r[c]??''))}</td>`).join('')}</tr>`
+    ).join('');
+    const tp = document.createElement('div');
+    tp.className = 'panel col2';
+    tp.innerHTML = `<div class="ph"><span>Sample Rows</span><span style="font-weight:400;text-transform:none;letter-spacing:normal;font-size:11px;color:var(--text-muted)">${obs.sample_rows.length} shown / ${obs.row_count} total</span></div><div class="data-table-wrap"><table class="data-table"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+    area.appendChild(tp);
+  }
+
+  // Secondary dataset info (Task 3)
+  const sec = obs.secondary_data_info;
+  if (sec && sec.row_count) {
+    const secCols = (sec.columns || []).join(', ');
+    const secRows = (sec.sample_rows || []).slice(0, 2).map(r =>
+      `<tr>${(sec.columns||[]).map(c => `<td>${esc(String(r[c]??''))}</td>`).join('')}</tr>`
+    ).join('');
+    const secThs = (sec.columns||[]).map(c => `<th>${esc(c)}</th>`).join('');
+    const secp = document.createElement('div');
+    secp.className = 'panel col2';
+    secp.innerHTML = `<div class="ph"><span>Secondary Dataset (products)</span><span style="font-weight:400;text-transform:none;letter-spacing:normal;font-size:11px;color:var(--text-muted)">${sec.row_count} rows</span></div><div class="data-table-wrap"><table class="data-table"><thead><tr>${secThs}</tr></thead><tbody>${secRows}</tbody></table></div>`;
+    area.appendChild(secp);
+  }
+}
+
+// ── Log ──────────────────────────────────────────────────────────────────────
+function log(type, msg) {
+  const b = document.getElementById('logBody');
+  const ts = new Date().toLocaleTimeString('en-US', {hour12:false});
+  const e = document.createElement('div');
+  e.className = 'le ' + type;
+  e.innerHTML = `<span class="ts">${ts}</span><span class="msg">${esc(msg)}</span>`;
+  b.appendChild(e);
+  b.scrollTop = b.scrollHeight;
+  // Cap log at 500 entries
+  while (b.children.length > 500) b.removeChild(b.firstChild);
+}
+
+function clearLog() {
+  document.getElementById('logBody').innerHTML = '';
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function pct(v) { return (v*100).toFixed(1) + '%'; }
+
+// Enter key sends step
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !['SELECT','BUTTON'].includes(document.activeElement.tagName)) {
+    doStep();
+  }
+});
+</script>
+
+</body>
+</html>
