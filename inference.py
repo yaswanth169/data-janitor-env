@@ -109,18 +109,30 @@ def build_user_prompt(obs: Dict[str, Any]) -> str:
 
 def parse_action(text: str) -> Optional[Dict[str, Any]]:
     text = text.strip()
-    match = re.search(r"\{[^{}]*\}", text, re.DOTALL)
-    if match:
-        try:
-            parsed = json.loads(match.group())
-            if "command" in parsed:
-                return {
-                    "command": parsed["command"],
-                    "column": parsed.get("column"),
-                    "params": parsed.get("params", {}),
-                }
-        except json.JSONDecodeError:
-            pass
+    # Extract outermost JSON object (handles nested braces in params)
+    try:
+        start = text.index("{")
+        depth = 0
+        for i, ch in enumerate(text[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    parsed = json.loads(text[start : i + 1])
+                    if "command" in parsed:
+                        # Support both {"command":"x","column":"y"} and
+                        # {"command":"x","params":{"column":"y",...}} formats
+                        params = parsed.get("params", {})
+                        column = parsed.get("column") or params.pop("column", None)
+                        return {
+                            "command": parsed["command"],
+                            "column": column,
+                            "params": params,
+                        }
+                    break
+    except (ValueError, json.JSONDecodeError):
+        pass
 
     match = re.search(r'"command"\s*:\s*"(\w+)"', text)
     if match:
@@ -129,9 +141,25 @@ def parse_action(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+async def _wake_space(http_url: str) -> None:
+    """Ping /health until the Space responds (handles cold starts)."""
+    import httpx
+    for _ in range(12):
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.get(f"{http_url}/health")
+                if r.status_code == 200:
+                    return
+        except Exception:
+            pass
+        await asyncio.sleep(5)
+
+
 async def run_task_ws(task_id: str, client: OpenAI) -> float:
     """Run a single task over WebSocket (stateful session)."""
     import websockets
+
+    await _wake_space(ENV_BASE_URL)
 
     ws_url = ENV_BASE_URL.replace("http://", "ws://").replace("https://", "wss://")
     ws_url = f"{ws_url}/ws"
