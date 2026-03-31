@@ -147,7 +147,7 @@ move the quality needle, not just whether the final submission passes.
 
 ## Architecture
 
-![Data Janitor Architecture](https://huggingface.co/spaces/yaswanth169/data-janitor-env/resolve/main/Archi.png)
+![Data Janitor Architecture](Archi.png)
 
 ```
 Three tasks of increasing difficulty, all seeded deterministically:
