@@ -31,6 +31,7 @@ class DataJanitorEnvironment(Environment):
         self._done = False
         self._initial_quality = 0.0
         self._current_quality = 0.0
+        self._join_done = False
 
     def reset(
         self,
@@ -49,6 +50,7 @@ class DataJanitorEnvironment(Environment):
         self._ground_truth = clean_data
         self._config = config
         self._done = False
+        self._join_done = False
 
         self._initial_quality = grade(
             self._engine.data, self._ground_truth, config["primary_key"]
@@ -89,6 +91,9 @@ class DataJanitorEnvironment(Environment):
 
         self._state.step_count += 1
         max_steps = self._config.get("max_steps", 20)
+
+        if action.command == "join" and self._engine.secondary_data is not None:
+            self._join_done = True
 
         result = self._engine.execute(action.command, action.column, action.params)
 
@@ -156,6 +161,10 @@ class DataJanitorEnvironment(Environment):
                 "sample_rows": sec[:3],
             }
 
+        task_desc = self._config.get("description", "")
+        if self._join_done:
+            task_desc += " [JOIN COMPLETE — secondary data already merged. Do NOT call join again.]"
+
         return DataJanitorObservation(
             done=done if done is not None else self._done,
             reward=reward,
@@ -164,7 +173,7 @@ class DataJanitorEnvironment(Environment):
             row_count=len(self._engine.data),
             quality_score=self._current_quality,
             issues=issues,
-            task_description=self._config.get("description", ""),
+            task_description=task_desc,
             target_schema=self._config.get("target_schema", {}),
             steps_taken=self._state.step_count,
             max_steps=self._config.get("max_steps", 20),

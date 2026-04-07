@@ -456,7 +456,11 @@ class DataEngine:
 
     def _cmd_join(self, column: Optional[str], params: Dict) -> str:
         if self.secondary_data is None:
-            return "No secondary dataset available for this task."
+            return (
+                "Join already completed — secondary dataset was merged earlier this episode. "
+                f"Current table has {len(self.data)} rows and columns: {self.columns}. "
+                "Do NOT call join again. Clean remaining issues (casing, types, totals) and submit."
+            )
 
         on = column or params.get("on")
         if not on:

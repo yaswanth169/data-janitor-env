@@ -8,6 +8,15 @@ def values_match(actual: Any, expected: Any) -> bool:
     if actual is None or expected is None:
         return False
 
+    # If expected is a native number, do numeric comparison with tolerance
+    if isinstance(expected, (int, float)) and not isinstance(expected, bool):
+        try:
+            a_str = str(actual).strip().replace(",", "").replace("$", "")
+            return abs(float(a_str) - float(expected)) < 0.02
+        except (ValueError, TypeError):
+            return False
+
+    # If both sides look numeric after stripping, do numeric comparison
     try:
         a_str = str(actual).strip().replace(",", "").replace("$", "")
         e_str = str(expected).strip().replace(",", "").replace("$", "")
@@ -17,7 +26,9 @@ def values_match(actual: Any, expected: Any) -> bool:
     except (ValueError, TypeError):
         pass
 
-    return str(actual).strip().lower() == str(expected).strip().lower()
+    # Exact string match — case-sensitive, whitespace stripped
+    # Agents must actually clean casing/formatting to get credit
+    return str(actual).strip() == str(expected).strip()
 
 
 def grade(
