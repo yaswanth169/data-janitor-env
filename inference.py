@@ -156,11 +156,14 @@ async def _wake_space(http_url: str) -> None:
         await asyncio.sleep(5)
 
 
-async def run_task_http(task_id: str, client: OpenAI) -> float:
-    """Run a single task over HTTP REST API (no WebSocket timeout issues)."""
-    import httpx
+async def run_task_ws(task_id: str, client: OpenAI) -> float:
+    """Run a single task over WebSocket with keepalive pings."""
+    import websockets
 
     await _wake_space(ENV_BASE_URL)
+
+    ws_url = ENV_BASE_URL.replace("http://", "ws://").replace("https://", "wss://")
+    ws_url = f"{ws_url}/ws"
 
     print(f"[START] task={task_id} env=data-janitor model={MODEL_NAME}", flush=True)
 
@@ -170,11 +173,12 @@ async def run_task_http(task_id: str, client: OpenAI) -> float:
     success = False
 
     try:
-        async with httpx.AsyncClient(timeout=60, base_url=ENV_BASE_URL) as http:
+        # ping_interval keeps connection alive during slow LLM calls
+        async with websockets.connect(ws_url, ping_interval=15, ping_timeout=30) as ws:
             # Reset
-            r = await http.post("/reset", json={"task_id": task_id})
-            r.raise_for_status()
-            payload = r.json()
+            await ws.send(json.dumps({"type": "reset", "data": {"task_id": task_id}}))
+            raw = json.loads(await ws.recv())
+            payload = raw.get("data", raw)
             obs = payload.get("observation", payload)
             done = payload.get("done", False)
 
@@ -189,11 +193,16 @@ async def run_task_http(task_id: str, client: OpenAI) -> float:
                 user_prompt = build_user_prompt(obs)
                 messages.append({"role": "user", "content": user_prompt})
 
-                completion = client.chat.completions.create(
-                    model=MODEL_NAME,
-                    messages=messages,
-                    temperature=TEMPERATURE,
-                    max_tokens=MAX_TOKENS,
+                # Run LLM call in thread so WebSocket pings fire concurrently
+                loop = asyncio.get_event_loop()
+                completion = await loop.run_in_executor(
+                    None,
+                    lambda: client.chat.completions.create(
+                        model=MODEL_NAME,
+                        messages=messages,
+                        temperature=TEMPERATURE,
+                        max_tokens=MAX_TOKENS,
+                    ),
                 )
                 assistant_text = completion.choices[0].message.content or ""
                 messages.append({"role": "assistant", "content": assistant_text})
@@ -205,20 +214,19 @@ async def run_task_http(task_id: str, client: OpenAI) -> float:
                 col = action.get("column") or ""
                 action_str = f"{action['command']}({col})"
 
-                r = await http.post("/step", json=action)
-                r.raise_for_status()
-                payload = r.json()
+                await ws.send(json.dumps({"type": "step", "data": action}))
+                raw = json.loads(await ws.recv())
+                payload = raw.get("data", raw)
                 obs = payload.get("observation", payload)
                 done = payload.get("done", False)
                 reward = payload.get("reward", 0.0) or 0.0
-                error = "null"
 
                 steps_taken = step + 1
                 rewards.append(reward)
 
                 print(
                     f"[STEP] step={steps_taken} action={action_str} "
-                    f"reward={reward:.2f} done={str(done).lower()} error={error}",
+                    f"reward={reward:.2f} done={str(done).lower()} error=null",
                     flush=True,
                 )
 
@@ -259,7 +267,7 @@ async def run_all():
     scores: Dict[str, float] = {}
 
     for task_id in TASK_IDS:
-        score = await run_task_http(task_id, client)
+        score = await run_task_ws(task_id, client)
         scores[task_id] = score
 
     avg = sum(scores.values()) / len(scores) if scores else 0
