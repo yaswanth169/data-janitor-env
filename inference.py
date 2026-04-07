@@ -236,6 +236,8 @@ async def run_task_ws(task_id: str, client: OpenAI) -> float:
             final_score = obs.get("quality_score", 0.0)
             if reward is not None and done:
                 final_score = float(reward) if float(reward) > 0 else final_score
+            # Clamp to (0, 1) exclusive — required by evaluator
+            final_score = max(0.01, min(0.99, final_score))
             success = final_score >= 0.95
 
     except Exception as e:
@@ -245,7 +247,8 @@ async def run_task_ws(task_id: str, client: OpenAI) -> float:
             flush=True,
         )
 
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
+    clamped = [max(0.01, min(0.99, r)) if r != 0.0 else r for r in rewards]
+    rewards_str = ",".join(f"{r:.2f}" for r in clamped) if clamped else "0.01"
     print(
         f"[END] success={str(success).lower()} steps={steps_taken} "
         f"score={final_score:.2f} rewards={rewards_str}",

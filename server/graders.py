@@ -52,7 +52,10 @@ def grade(
                 if values_match(row.get(col), truth_row.get(col)):
                     correct_cells += 1
 
-    return round(correct_cells / total_cells, 4)
+    score = round(correct_cells / total_cells, 4)
+    # Clamp to (0, 1) exclusive — required by OpenEnv evaluator
+    score = max(0.01, min(0.99, score))
+    return score
 
 
 def detect_issues(
