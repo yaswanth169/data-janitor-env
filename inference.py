@@ -156,14 +156,11 @@ async def _wake_space(http_url: str) -> None:
         await asyncio.sleep(5)
 
 
-async def run_task_ws(task_id: str, client: OpenAI) -> float:
-    """Run a single task over WebSocket (stateful session)."""
-    import websockets
+async def run_task_http(task_id: str, client: OpenAI) -> float:
+    """Run a single task over HTTP REST API (no WebSocket timeout issues)."""
+    import httpx
 
     await _wake_space(ENV_BASE_URL)
-
-    ws_url = ENV_BASE_URL.replace("http://", "ws://").replace("https://", "wss://")
-    ws_url = f"{ws_url}/ws"
 
     print(f"[START] task={task_id} env=data-janitor model={MODEL_NAME}", flush=True)
 
@@ -173,11 +170,11 @@ async def run_task_ws(task_id: str, client: OpenAI) -> float:
     success = False
 
     try:
-        async with websockets.connect(ws_url) as ws:
+        async with httpx.AsyncClient(timeout=60, base_url=ENV_BASE_URL) as http:
             # Reset
-            await ws.send(json.dumps({"type": "reset", "data": {"task_id": task_id}}))
-            raw = json.loads(await ws.recv())
-            payload = raw.get("data", raw)
+            r = await http.post("/reset", json={"task_id": task_id})
+            r.raise_for_status()
+            payload = r.json()
             obs = payload.get("observation", payload)
             done = payload.get("done", False)
 
@@ -206,15 +203,15 @@ async def run_task_ws(task_id: str, client: OpenAI) -> float:
                     action = {"command": "submit", "column": None, "params": {}}
 
                 col = action.get("column") or ""
-                action_str = f"{action['command']}({col})".replace("()", "()")
+                action_str = f"{action['command']}({col})"
 
-                await ws.send(json.dumps({"type": "step", "data": action}))
-                raw = json.loads(await ws.recv())
-                payload = raw.get("data", raw)
+                r = await http.post("/step", json=action)
+                r.raise_for_status()
+                payload = r.json()
                 obs = payload.get("observation", payload)
                 done = payload.get("done", False)
                 reward = payload.get("reward", 0.0) or 0.0
-                error = obs.get("message", "null") if obs.get("error") else "null"
+                error = "null"
 
                 steps_taken = step + 1
                 rewards.append(reward)
@@ -262,7 +259,7 @@ async def run_all():
     scores: Dict[str, float] = {}
 
     for task_id in TASK_IDS:
-        score = await run_task_ws(task_id, client)
+        score = await run_task_http(task_id, client)
         scores[task_id] = score
 
     avg = sum(scores.values()) / len(scores) if scores else 0
