@@ -414,6 +414,144 @@ def generate_task3(seed: int = 789) -> TaskData:
     return orders_dirty, clean_joined, config
 
 
+MAJORS = [
+    "Computer Science", "Business Administration", "Electrical Engineering",
+    "Psychology", "Biology", "Mathematics", "History", "Political Science",
+    "Mechanical Engineering", "Economics",
+]
+
+STATUS_MAP = {
+    "Active": ["active", "ACTIVE", "enrolled", "Enrolled", "ENROLLED", "current"],
+    "Graduated": ["graduated", "GRADUATED", "Grad", "grad", "complete", "COMPLETE"],
+    "Inactive": ["inactive", "INACTIVE", "withdrawn", "Withdrawn", "dropped"],
+}
+
+
+def generate_task4(seed: int = 321) -> TaskData:
+    """Student records cleanup — transfer task (different domain, medium-hard).
+
+    Tests whether agents can generalise cleaning skills to a completely
+    new domain: university student records with GPA, majors, enrollment
+    dates, graduation years, and status codes.
+    """
+    rng = random.Random(seed)
+
+    clean_data: List[Dict[str, Any]] = []
+    used_ids: set = set()
+
+    for i in range(50):
+        sid = f"STU-{i + 1:04d}"
+        while sid in used_ids:
+            i += 1
+            sid = f"STU-{i + 1:04d}"
+        used_ids.add(sid)
+
+        first = rng.choice(FIRST_NAMES)
+        last = rng.choice(LAST_NAMES)
+        gpa = round(rng.uniform(2.0, 4.0), 2)
+        major = rng.choice(MAJORS)
+        year = rng.randint(2018, 2023)
+        month = rng.randint(1, 12)
+        day = rng.randint(1, 28)
+        enrollment_date = f"{year}-{month:02d}-{day:02d}"
+        grad_year = year + rng.randint(3, 5)
+        status = rng.choice(["Active", "Graduated", "Inactive"])
+
+        clean_data.append({
+            "student_id": sid,
+            "full_name": f"{first} {last}",
+            "gpa": gpa,
+            "major": major,
+            "enrollment_date": enrollment_date,
+            "graduation_year": grad_year,
+            "status": status,
+        })
+
+    dirty_data = [dict(row) for row in clean_data]
+
+    # Introduce duplicates (10 extra)
+    dup_indices = rng.sample(range(len(clean_data)), 10)
+    for idx in dup_indices:
+        dirty_data.append(dict(clean_data[idx]))
+    rng.shuffle(dirty_data)
+
+    # GPA as string with occasional whitespace
+    for row in dirty_data:
+        if rng.random() < 0.5:
+            row["gpa"] = str(row["gpa"])
+        if rng.random() < 0.15:
+            row["gpa"] = f"  {row['gpa']}  "
+
+    # Major casing corruption
+    for row in dirty_data:
+        r = rng.random()
+        if r < 0.2:
+            row["major"] = row["major"].upper()
+        elif r < 0.35:
+            row["major"] = row["major"].lower()
+
+    # Enrollment date in multiple formats
+    date_formats = ["%m/%d/%Y", "%b %d, %Y", "%d-%b-%Y", "%Y-%m-%d"]
+    for row in dirty_data:
+        fmt = rng.choice(date_formats)
+        try:
+            dt = datetime_from_iso(row["enrollment_date"])
+            row["enrollment_date"] = dt.strftime(fmt)
+        except Exception:
+            pass
+
+    # Graduation year as string
+    for row in dirty_data:
+        if rng.random() < 0.45:
+            row["graduation_year"] = str(row["graduation_year"])
+
+    # Status values corrupted to synonyms
+    reverse_status: Dict[str, str] = {}
+    for clean_val, dirty_vals in STATUS_MAP.items():
+        for dv in dirty_vals:
+            reverse_status[clean_val] = dv
+    for row in dirty_data:
+        if rng.random() < 0.55:
+            clean_s = row["status"]
+            variants = STATUS_MAP.get(clean_s, [clean_s])
+            row["status"] = rng.choice(variants)
+
+    # Name casing corruption
+    for row in dirty_data:
+        r = rng.random()
+        if r < 0.15:
+            row["full_name"] = row["full_name"].upper()
+        elif r < 0.25:
+            row["full_name"] = row["full_name"].lower()
+
+    config: TaskConfig = {
+        "task_id": "student_records",
+        "name": "Student Records Cleanup",
+        "difficulty": "medium-hard",
+        "description": (
+            "Clean a university student records dataset. Remove duplicate entries, "
+            "convert GPA from strings to floats, standardize major names to title case, "
+            "parse enrollment dates to ISO format (YYYY-MM-DD), convert graduation year "
+            "to integers, map status synonyms (enrolled/active/current → Active, "
+            "graduated/complete → Graduated, withdrawn/dropped → Inactive), "
+            "and fix name casing to title case."
+        ),
+        "max_steps": 20,
+        "primary_key": "student_id",
+        "target_schema": {
+            "student_id": "str",
+            "full_name": "str (title case)",
+            "gpa": "float",
+            "major": "str (title case)",
+            "enrollment_date": "str (YYYY-MM-DD)",
+            "graduation_year": "int",
+            "status": "str (Active|Graduated|Inactive)",
+        },
+    }
+
+    return dirty_data, clean_data, config
+
+
 def datetime_from_iso(iso_str: str):
     from datetime import datetime
     return datetime.strptime(iso_str.strip(), "%Y-%m-%d")
@@ -424,6 +562,7 @@ def get_task(task_id: str) -> TaskData:
         "fix_basics": generate_task1,
         "normalize_chaos": generate_task2,
         "pipeline_merge": generate_task3,
+        "student_records": generate_task4,
     }
     generator = tasks.get(task_id)
     if not generator:
@@ -431,4 +570,4 @@ def get_task(task_id: str) -> TaskData:
     return generator()
 
 
-TASK_IDS = ["fix_basics", "normalize_chaos", "pipeline_merge"]
+TASK_IDS = ["fix_basics", "normalize_chaos", "pipeline_merge", "student_records"]

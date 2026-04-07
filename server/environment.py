@@ -53,7 +53,8 @@ class DataJanitorEnvironment(Environment):
         self._join_done = False
 
         self._initial_quality = grade(
-            self._engine.data, self._ground_truth, config["primary_key"]
+            self._engine.data, self._ground_truth, config["primary_key"],
+            target_schema=config.get("target_schema"),
         )
         self._current_quality = self._initial_quality
 
@@ -102,6 +103,7 @@ class DataJanitorEnvironment(Environment):
             self._engine.data,
             self._ground_truth,
             self._config["primary_key"],
+            target_schema=self._config.get("target_schema"),
         )
         self._state.current_quality = self._current_quality
 

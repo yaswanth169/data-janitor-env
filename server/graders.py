@@ -31,16 +31,12 @@ def values_match(actual: Any, expected: Any) -> bool:
     return str(actual).strip() == str(expected).strip()
 
 
-def grade(
+def _grade_accuracy(
     cleaned_data: List[Dict[str, Any]],
     ground_truth: List[Dict[str, Any]],
     primary_key: str,
 ) -> float:
-    if not ground_truth:
-        return 0.0
-    if not cleaned_data:
-        return 0.0
-
+    """Cell-by-cell accuracy: what fraction of expected cells are correct."""
     truth_lookup: Dict[str, Dict[str, Any]] = {}
     for row in ground_truth:
         key = str(row[primary_key]).strip()
@@ -63,10 +59,105 @@ def grade(
                 if values_match(row.get(col), truth_row.get(col)):
                     correct_cells += 1
 
-    score = round(correct_cells / total_cells, 4)
+    return correct_cells / total_cells
+
+
+def _grade_completeness(
+    cleaned_data: List[Dict[str, Any]],
+    ground_truth: List[Dict[str, Any]],
+    primary_key: str,
+) -> float:
+    """Completeness: fraction of ground-truth rows still present after cleaning."""
+    if not ground_truth:
+        return 0.0
+    truth_keys = {str(row[primary_key]).strip() for row in ground_truth}
+    cleaned_keys = {str(row.get(primary_key, "")).strip() for row in cleaned_data}
+    matched = len(truth_keys & cleaned_keys)
+    return matched / len(truth_keys)
+
+
+def _grade_integrity(
+    cleaned_data: List[Dict[str, Any]],
+    primary_key: str,
+) -> float:
+    """Integrity: no duplicate primary keys in cleaned data."""
+    if not cleaned_data:
+        return 0.0
+    pk_values = [str(row.get(primary_key, "")).strip() for row in cleaned_data]
+    unique_count = len(set(pk_values))
+    return unique_count / len(pk_values)
+
+
+def _grade_types(
+    cleaned_data: List[Dict[str, Any]],
+    target_schema: Dict[str, str],
+) -> float:
+    """Type correctness: fraction of columns with correct Python types."""
+    if not cleaned_data or not target_schema:
+        return 1.0
+
+    correct = 0
+    total = 0
+
+    for col, type_hint in target_schema.items():
+        if col not in cleaned_data[0]:
+            total += 1
+            continue
+        values = [row.get(col) for row in cleaned_data if row.get(col) is not None]
+        if not values:
+            correct += 1
+            total += 1
+            continue
+
+        type_lower = type_hint.lower()
+        total += 1
+
+        if "int" in type_lower:
+            if all(isinstance(v, int) and not isinstance(v, bool) for v in values):
+                correct += 1
+        elif "float" in type_lower:
+            if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
+                correct += 1
+        else:
+            if all(isinstance(v, str) for v in values):
+                correct += 1
+
+    return correct / total if total > 0 else 1.0
+
+
+def grade(
+    cleaned_data: List[Dict[str, Any]],
+    ground_truth: List[Dict[str, Any]],
+    primary_key: str,
+    target_schema: Optional[Dict[str, str]] = None,
+) -> float:
+    """
+    Multi-dimensional quality score combining:
+      - Accuracy     (70%): cell-by-cell value correctness vs ground truth
+      - Completeness (15%): fraction of expected rows still present
+      - Integrity    (10%): no duplicate primary keys
+      - Type quality  (5%): column types match target schema
+    """
+    if not ground_truth:
+        return 0.01
+    if not cleaned_data:
+        return 0.01
+
+    accuracy     = _grade_accuracy(cleaned_data, ground_truth, primary_key)
+    completeness = _grade_completeness(cleaned_data, ground_truth, primary_key)
+    integrity    = _grade_integrity(cleaned_data, primary_key)
+    type_score   = _grade_types(cleaned_data, target_schema or {})
+
+    combined = (
+        0.70 * accuracy
+        + 0.15 * completeness
+        + 0.10 * integrity
+        + 0.05 * type_score
+    )
+
+    score = round(combined, 4)
     # Clamp to (0, 1) exclusive — required by OpenEnv evaluator
-    score = max(0.01, min(0.99, score))
-    return score
+    return max(0.01, min(0.99, score))
 
 
 def detect_issues(
