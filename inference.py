@@ -22,7 +22,7 @@ ENV_BASE_URL = os.getenv("ENV_BASE_URL", "https://yaswanth169-data-janitor-env.h
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
-MODEL_NAME = os.getenv("MODEL_NAME", "")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
 TASK_IDS = ["fix_basics", "normalize_chaos", "pipeline_merge"]
 TEMPERATURE = 0.1
@@ -165,93 +165,108 @@ async def run_task_ws(task_id: str, client: OpenAI) -> float:
     ws_url = ENV_BASE_URL.replace("http://", "ws://").replace("https://", "wss://")
     ws_url = f"{ws_url}/ws"
 
-    print(f"\n{'='*60}")
-    print(f"Task: {task_id}")
-    print(f"{'='*60}")
+    print(f"[START] task={task_id} env=data-janitor model={MODEL_NAME}", flush=True)
 
-    async with websockets.connect(ws_url) as ws:
-        # Reset
-        await ws.send(json.dumps({"type": "reset", "data": {"task_id": task_id}}))
-        raw = json.loads(await ws.recv())
-        payload = raw.get("data", raw)
-        obs = payload.get("observation", payload)
-        done = payload.get("done", False)
+    final_score = 0.0
+    rewards: list = []
+    steps_taken = 0
+    success = False
 
-        print(f"  Rows: {obs.get('row_count')} | Quality: {obs.get('quality_score', 0):.2%}")
-
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        max_steps = obs.get("max_steps", 20)
-
-        for step in range(max_steps):
-            if done:
-                break
-
-            user_prompt = build_user_prompt(obs)
-            messages.append({"role": "user", "content": user_prompt})
-
-            completion = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=messages,
-                temperature=TEMPERATURE,
-                max_tokens=MAX_TOKENS,
-            )
-            assistant_text = completion.choices[0].message.content or ""
-            messages.append({"role": "assistant", "content": assistant_text})
-
-            action = parse_action(assistant_text)
-            if not action:
-                action = {"command": "submit", "column": None, "params": {}}
-                print(f"  Step {step + 1}: Failed to parse, submitting")
-            else:
-                print(f"  Step {step + 1}: {action['command']}({action.get('column', '')})")
-
-            await ws.send(json.dumps({"type": "step", "data": action}))
+    try:
+        async with websockets.connect(ws_url) as ws:
+            # Reset
+            await ws.send(json.dumps({"type": "reset", "data": {"task_id": task_id}}))
             raw = json.loads(await ws.recv())
             payload = raw.get("data", raw)
             obs = payload.get("observation", payload)
             done = payload.get("done", False)
-            reward = payload.get("reward")
 
-            print(f"    Quality: {obs.get('quality_score', 0):.2%} | Reward: {reward}")
+            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+            max_steps = obs.get("max_steps", 20)
+            reward = 0.0
 
-            if len(messages) > 12:
-                messages = messages[:2] + messages[-8:]
+            for step in range(max_steps):
+                if done:
+                    break
 
-    final_score = obs.get("quality_score", 0.0)
-    if reward is not None and done:
-        final_score = reward
+                user_prompt = build_user_prompt(obs)
+                messages.append({"role": "user", "content": user_prompt})
 
-    print(f"  Final score: {final_score:.4f}")
+                completion = client.chat.completions.create(
+                    model=MODEL_NAME,
+                    messages=messages,
+                    temperature=TEMPERATURE,
+                    max_tokens=MAX_TOKENS,
+                )
+                assistant_text = completion.choices[0].message.content or ""
+                messages.append({"role": "assistant", "content": assistant_text})
+
+                action = parse_action(assistant_text)
+                if not action:
+                    action = {"command": "submit", "column": None, "params": {}}
+
+                col = action.get("column") or ""
+                action_str = f"{action['command']}({col})".replace("()", "()")
+
+                await ws.send(json.dumps({"type": "step", "data": action}))
+                raw = json.loads(await ws.recv())
+                payload = raw.get("data", raw)
+                obs = payload.get("observation", payload)
+                done = payload.get("done", False)
+                reward = payload.get("reward", 0.0) or 0.0
+                error = obs.get("message", "null") if obs.get("error") else "null"
+
+                steps_taken = step + 1
+                rewards.append(reward)
+
+                print(
+                    f"[STEP] step={steps_taken} action={action_str} "
+                    f"reward={reward:.2f} done={str(done).lower()} error={error}",
+                    flush=True,
+                )
+
+                if len(messages) > 12:
+                    messages = messages[:2] + messages[-8:]
+
+            final_score = obs.get("quality_score", 0.0)
+            if reward is not None and done:
+                final_score = float(reward) if float(reward) > 0 else final_score
+            success = final_score >= 0.95
+
+    except Exception as e:
+        error_msg = str(e).replace("\n", " ")
+        print(
+            f"[STEP] step={steps_taken + 1} action=error reward=0.00 done=true error={error_msg}",
+            flush=True,
+        )
+
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
+    print(
+        f"[END] success={str(success).lower()} steps={steps_taken} "
+        f"score={final_score:.2f} rewards={rewards_str}",
+        flush=True,
+    )
+
     return final_score
 
 
 async def run_all():
-    if not MODEL_NAME:
-        print("ERROR: MODEL_NAME environment variable is required.")
-        return
     if not API_KEY:
-        print("ERROR: HF_TOKEN or API_KEY environment variable is required.")
+        # Emit a failed [END] for each task so the evaluator sees structured output
+        for task_id in TASK_IDS:
+            print(f"[START] task={task_id} env=data-janitor model={MODEL_NAME}", flush=True)
+            print(f"[END] success=false steps=0 score=0.00 rewards=0.00", flush=True)
         return
 
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     scores: Dict[str, float] = {}
 
     for task_id in TASK_IDS:
-        try:
-            score = await run_task_ws(task_id, client)
-            scores[task_id] = score
-        except Exception as e:
-            print(f"  ERROR on {task_id}: {e}")
-            scores[task_id] = 0.0
+        score = await run_task_ws(task_id, client)
+        scores[task_id] = score
 
-    print(f"\n{'='*60}")
-    print("Results Summary")
-    print(f"{'='*60}")
-    for task_id, score in scores.items():
-        bar = "#" * int(score * 40)
-        print(f"  {task_id:20s} [{bar:<40}] {score:.4f}")
     avg = sum(scores.values()) / len(scores) if scores else 0
-    print(f"  {'Average':20s}                                          {avg:.4f}")
+    print(f"# Average score: {avg:.4f}", flush=True)
 
 
 def main():
