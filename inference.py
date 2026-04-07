@@ -174,7 +174,7 @@ async def run_task_ws(task_id: str, client: OpenAI) -> float:
 
     try:
         # ping_interval keeps connection alive during slow LLM calls
-        async with websockets.connect(ws_url, ping_interval=15, ping_timeout=30) as ws:
+        async with websockets.connect(ws_url, ping_interval=None) as ws:
             # Reset
             await ws.send(json.dumps({"type": "reset", "data": {"task_id": task_id}}))
             raw = json.loads(await ws.recv())
