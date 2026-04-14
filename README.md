@@ -10,7 +10,9 @@ tags:
 ---
 
 **Team Name:** Byte Me
-**Team Members:** Ireddi Rakshitha, Devavarapu Yashwanth
+**Team Members:** 
+- Ireddi Rakshitha
+- Devavarapu Yashwanth
 
 # Data Janitor Env
 
